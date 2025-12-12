@@ -1,15 +1,17 @@
-import { Button } from "@/components/ui/button";
-import { ModeToggle } from "@/components/ui/mode-toggle";
+import { redirect } from "next/navigation";
+import { createClient } from "@/utils/supabase/server";
 
-const Home = () => {
-	return (
-		<div className="flex flex-col items-center justify-center min-h-svh">
-			<h1 className="text-3xl font-bold">Olá Mundo!</h1>
+export default async function Home() {
+	const supabase = await createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
 
-			<ModeToggle />
-			<Button className="cursor-pointer">Botão</Button>
-		</div>
-	);
-};
+	// Se o usuário estiver logado, redireciona para o dashboard
+	if (user) {
+		redirect("/dashboard");
+	}
 
-export default Home;
+	// Se não estiver logado, redireciona para o login
+	redirect("/login");
+}
