@@ -1,28 +1,39 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useState } from "react";
+import { useForm } from "react-hook-form";
 import { login } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { type LoginFormData, loginSchema } from "@/shared/schemas/auth";
 
 /**
  * Formulário de login para estabelecimentos
- * Implementa validação client-side e integração com Server Actions
+ * Implementa validação com React Hook Form + Zod e integração com Server Actions
  */
 export function LoginForm() {
-	const emailId = useId();
-	const passwordId = useId();
 	const searchParams = useSearchParams();
 	const [isLoading, setIsLoading] = useState(false);
-	const [errors, setErrors] = useState<{
-		email?: string;
-		password?: string;
-		general?: string;
-	}>({});
+	const [serverError, setServerError] = useState<string | null>(null);
+
+	// IDs únicos para acessibilidade
+	const emailId = useId();
+	const passwordId = useId();
+
+	// Configuração do React Hook Form com Zod
+	const {
+		register,
+		handleSubmit,
+		formState: { errors },
+	} = useForm<LoginFormData>({
+		resolver: zodResolver(loginSchema),
+		mode: "onBlur", // Valida quando o campo perde o foco
+	});
 
 	// Verifica se há erro nos query parameters
 	useEffect(() => {
@@ -36,50 +47,31 @@ export function LoginForm() {
 				unexpected: "Erro inesperado. Tente novamente",
 			};
 
-			setErrors({
-				general: errorMessages[error] || "Erro desconhecido. Tente novamente",
-			});
+			setServerError(errorMessages[error] || "Erro desconhecido. Tente novamente");
 		}
 	}, [searchParams]);
 
 	/**
-	 * Valida campos do formulário
+	 * Manipula submissão do formulário
 	 */
-	const validateForm = (formData: FormData): boolean => {
-		const email = formData.get("email") as string;
-		const password = formData.get("password") as string;
-		const newErrors: typeof errors = {};
-
-		// Validação de email
-		if (!email) {
-			newErrors.email = "E-mail é obrigatório";
-		} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-			newErrors.email = "E-mail inválido";
-		}
-
-		// Validação de senha
-		if (!password) {
-			newErrors.password = "Senha é obrigatória";
-		}
-
-		setErrors(newErrors);
-		return Object.keys(newErrors).length === 0;
-	};
-
-	/**
-	 * Manipula submissão do formulário com validação client-side
-	 */
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		const formData = new FormData(event.currentTarget);
-
-		// Validar formulário no client-side
-		if (!validateForm(formData)) {
-			event.preventDefault();
-			return;
-		}
-
-		// Se validação passou, deixar Server Action executar
+	const onSubmit = async (data: LoginFormData) => {
 		setIsLoading(true);
+		setServerError(null);
+
+		try {
+			// Criar FormData para Server Action
+			const formData = new FormData();
+			formData.append("email", data.email);
+			formData.append("password", data.password);
+
+			// Chamar Server Action
+			await login(formData);
+		} catch (error) {
+			console.error("Erro no login:", error);
+			setServerError("Erro inesperado. Tente novamente.");
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	return (
@@ -93,11 +85,11 @@ export function LoginForm() {
 				</CardHeader>
 
 				<CardContent>
-					<form onSubmit={handleSubmit} action={login} className="space-y-6">
-						{/* Erro geral */}
-						{errors.general && (
+					<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+						{/* Erro do servidor */}
+						{serverError && (
 							<div className="rounded-md bg-red-50 p-4">
-								<div className="text-sm text-red-700">{errors.general}</div>
+								<div className="text-sm text-red-700">{serverError}</div>
 							</div>
 						)}
 
@@ -107,14 +99,14 @@ export function LoginForm() {
 							<FieldContent>
 								<Input
 									id={emailId}
-									name="email"
 									type="email"
 									autoComplete="email"
 									placeholder="seu@email.com"
 									disabled={isLoading}
 									aria-invalid={!!errors.email}
+									{...register("email")}
 								/>
-								<FieldError>{errors.email}</FieldError>
+								<FieldError>{errors.email?.message}</FieldError>
 							</FieldContent>
 						</Field>
 
@@ -124,14 +116,14 @@ export function LoginForm() {
 							<FieldContent>
 								<Input
 									id={passwordId}
-									name="password"
 									type="password"
 									autoComplete="current-password"
 									placeholder="Digite sua senha"
 									disabled={isLoading}
 									aria-invalid={!!errors.password}
+									{...register("password")}
 								/>
-								<FieldError>{errors.password}</FieldError>
+								<FieldError>{errors.password?.message}</FieldError>
 							</FieldContent>
 						</Field>
 

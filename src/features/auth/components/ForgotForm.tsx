@@ -1,74 +1,53 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useId, useState } from "react";
+import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { type ForgotPasswordFormData, forgotPasswordSchema } from "@/shared/schemas/auth";
 
 /**
  * Formulário de recuperação de senha
- * Implementa fluxo conforme especificado no PRD
+ * Implementa fluxo conforme especificado no PRD com React Hook Form + Zod
  */
 export function ForgotForm() {
 	const emailId = useId();
 	const [isLoading, setIsLoading] = useState(false);
 	const [isSuccess, setIsSuccess] = useState(false);
-	const [errors, setErrors] = useState<{
-		email?: string;
-		general?: string;
-	}>({});
+	const [serverError, setServerError] = useState<string | null>(null);
 
-	/**
-	 * Valida campo de email
-	 */
-	const validateForm = (formData: FormData): boolean => {
-		const email = (formData.get("email") as string)?.trim();
-		const newErrors: typeof errors = {};
-
-		// Validação de email
-		if (!email) {
-			newErrors.email = "E-mail é obrigatório";
-		} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-			newErrors.email = "E-mail inválido";
-		}
-
-		setErrors(newErrors);
-		return Object.keys(newErrors).length === 0;
-	};
+	// Configuração do React Hook Form com Zod
+	const {
+		register,
+		handleSubmit,
+		formState: { errors },
+	} = useForm<ForgotPasswordFormData>({
+		resolver: zodResolver(forgotPasswordSchema),
+		mode: "onBlur",
+	});
 
 	/**
 	 * Manipula submissão do formulário
 	 */
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const onSubmit = async (data: ForgotPasswordFormData) => {
 		setIsLoading(true);
-		setErrors({});
-
-		const formData = new FormData(event.currentTarget);
-
-		// Validar formulário
-		if (!validateForm(formData)) {
-			setIsLoading(false);
-			return;
-		}
+		setServerError(null);
 
 		try {
-			const email = (formData.get("email") as string)?.trim().toLowerCase();
-
 			// TODO: Implementar Server Action para reset de senha
 			// Por enquanto, simular sucesso
 			await new Promise((resolve) => setTimeout(resolve, 2000));
 
-			console.log("Solicitação de reset enviada para:", email);
+			console.log("Solicitação de reset enviada para:", data.email);
 			setIsSuccess(true);
 		} catch (error) {
 			console.error("Erro ao solicitar reset:", error);
-			setErrors({
-				general: "Erro ao enviar instruções. Tente novamente.",
-			});
+			setServerError("Erro ao enviar instruções. Tente novamente.");
 		} finally {
 			setIsLoading(false);
 		}
@@ -129,11 +108,11 @@ export function ForgotForm() {
 				</CardHeader>
 
 				<CardContent>
-					<form onSubmit={handleSubmit} className="space-y-6">
-						{/* Erro geral */}
-						{errors.general && (
+					<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+						{/* Erro do servidor */}
+						{serverError && (
 							<div className="rounded-md bg-red-50 p-4">
-								<div className="text-sm text-red-700">{errors.general}</div>
+								<div className="text-sm text-red-700">{serverError}</div>
 							</div>
 						)}
 
@@ -142,15 +121,15 @@ export function ForgotForm() {
 							<FieldLabel htmlFor={emailId}>E-mail</FieldLabel>
 							<FieldContent>
 								<Input
+									{...register("email")}
 									id={emailId}
-									name="email"
 									type="email"
 									autoComplete="email"
 									placeholder="seu@email.com"
 									disabled={isLoading}
 									aria-invalid={!!errors.email}
 								/>
-								<FieldError>{errors.email}</FieldError>
+								<FieldError>{errors.email?.message}</FieldError>
 							</FieldContent>
 						</Field>
 
