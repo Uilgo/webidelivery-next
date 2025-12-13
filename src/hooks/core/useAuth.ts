@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
 /**
- * Hook para gerenciar estado de autenticação do usuário
- * Monitora login/logout e mantém dados do usuário sincronizados
+ * Hook básico para gerenciar estado de autenticação do usuário
+ * DEPRECATED: Use useUser() para funcionalidades completas
+ * Mantido para compatibilidade com código existente
  */
 export function useSupabaseUser() {
 	const [user, setUser] = useState<User | null>(null);
