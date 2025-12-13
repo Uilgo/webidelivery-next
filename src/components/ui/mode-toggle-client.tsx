@@ -9,7 +9,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useTheme } from "@/hooks/use-theme-cookie";
+import { useTheme } from "@/hooks/ui/useTheme";
 
 interface ModeToggleClientProps {
 	initialTheme: string;

@@ -3,7 +3,12 @@
 import { useId } from "react";
 import { login, signup } from "@/actions/auth";
 
+/**
+ * Página de login e cadastro
+ * Formulário único que permite tanto login quanto criação de conta
+ */
 export default function LoginPage() {
+	// Gera IDs únicos para acessibilidade dos campos
 	const emailId = useId();
 	const passwordId = useId();
 

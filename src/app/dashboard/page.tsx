@@ -1,12 +1,18 @@
 import { signout } from "@/actions/auth";
 import { createClient } from "@/utils/supabase/server";
 
+/**
+ * Página principal do dashboard (área logada)
+ * Exibe informações do usuário e cards de navegação
+ */
 export default async function DashboardPage() {
+	// Busca dados do usuário no servidor
 	const supabase = await createClient();
 	const {
 		data: { user },
 	} = await supabase.auth.getUser();
 
+	// Fallback caso não esteja autenticado (não deveria acontecer devido ao proxy)
 	if (!user) {
 		return <div>Não autenticado</div>;
 	}

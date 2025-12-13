@@ -1,3 +1,7 @@
+/**
+ * Página de erro genérica
+ * Exibida quando ocorrem falhas na autenticação ou outros erros
+ */
 export default function ErrorPage() {
 	return (
 		<div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">

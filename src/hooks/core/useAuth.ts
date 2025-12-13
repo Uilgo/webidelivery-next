@@ -4,13 +4,17 @@ import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 
+/**
+ * Hook para gerenciar estado de autenticação do usuário
+ * Monitora login/logout e mantém dados do usuário sincronizados
+ */
 export function useSupabaseUser() {
 	const [user, setUser] = useState<User | null>(null);
 	const [loading, setLoading] = useState(true);
 	const supabase = createClient();
 
 	useEffect(() => {
-		// Obter usuário inicial
+		// Busca dados do usuário atual na inicialização
 		const getUser = async () => {
 			const {
 				data: { user },
@@ -21,7 +25,7 @@ export function useSupabaseUser() {
 
 		getUser();
 
-		// Escutar mudanças de auth
+		// Escuta mudanças de estado de autenticação (login/logout)
 		const {
 			data: { subscription },
 		} = supabase.auth.onAuthStateChange((_event, session) => {
@@ -29,6 +33,7 @@ export function useSupabaseUser() {
 			setLoading(false);
 		});
 
+		// Limpa subscription ao desmontar componente
 		return () => subscription.unsubscribe();
 	}, [supabase.auth]);
 
