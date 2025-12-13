@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InputWithValidation } from "@/components/ui/input-with-validation";
+import { useEmailValidation } from "@/hooks/form/useEmailValidation";
+import { normalizeEmail } from "@/lib/formatters/text";
 import { type SignupFormData, signupSchema } from "@/shared/schemas/auth";
 
 /**
@@ -20,6 +23,17 @@ export function SignupForm() {
 	const searchParams = useSearchParams();
 	const [isLoading, setIsLoading] = useState(false);
 	const [serverError, setServerError] = useState<string | null>(null);
+
+	// Hook para validação de email em tempo real
+	const {
+		email,
+		handleEmailChange,
+		validateOnBlur,
+		showSuccess: emailSuccess,
+		showError: emailError,
+		showLoading: emailLoading,
+		error: emailErrorMessage,
+	} = useEmailValidation();
 
 	// IDs únicos para acessibilidade
 	const nomeId = useId();
@@ -60,6 +74,12 @@ export function SignupForm() {
 	 * Manipula submissão do formulário
 	 */
 	const onSubmit = async (data: SignupFormData) => {
+		// Verificar se email está disponível antes de submeter
+		if (!emailSuccess) {
+			setServerError("Verifique se o email está disponível antes de continuar");
+			return;
+		}
+
 		setIsLoading(true);
 		setServerError(null);
 
@@ -68,7 +88,7 @@ export function SignupForm() {
 			const formData = new FormData();
 			formData.append("nome", data.nome);
 			formData.append("sobrenome", data.sobrenome);
-			formData.append("email", data.email);
+			formData.append("email", normalizeEmail(email)); // Normalizar email antes de enviar
 			formData.append("password", data.password);
 
 			// Chamar Server Action
@@ -133,20 +153,31 @@ export function SignupForm() {
 							</Field>
 						</div>
 
-						{/* Campo E-mail */}
+						{/* Campo E-mail com validação dupla (Zod + Server) */}
 						<Field>
 							<FieldLabel htmlFor={emailId}>E-mail</FieldLabel>
 							<FieldContent>
-								<Input
-									{...register("email")}
+								<InputWithValidation
+									{...register("email", {
+										onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+											handleEmailChange(e.target.value);
+										},
+										onBlur: validateOnBlur,
+									})}
 									id={emailId}
 									type="email"
 									autoComplete="email"
 									placeholder="seu@email.com"
 									disabled={isLoading}
-									aria-invalid={!!errors.email}
+									showSuccess={emailSuccess && !errors.email}
+									showError={emailError || !!errors.email}
+									showLoading={emailLoading}
+									aria-invalid={emailError || !!errors.email}
 								/>
-								<FieldError>{errors.email?.message}</FieldError>
+								<FieldError>
+									{/* Priorizar erro do Zod (formato) sobre erro do servidor (disponibilidade) */}
+									{errors.email?.message || emailErrorMessage}
+								</FieldError>
 							</FieldContent>
 						</Field>
 

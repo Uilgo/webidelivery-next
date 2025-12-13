@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { normalizeEmail } from "@/lib/formatters/text";
 import { type ForgotPasswordFormData, forgotPasswordSchema } from "@/shared/schemas/auth";
 
 /**
@@ -43,7 +44,7 @@ export function ForgotForm() {
 			// Por enquanto, simular sucesso
 			await new Promise((resolve) => setTimeout(resolve, 2000));
 
-			console.log("Solicitação de reset enviada para:", data.email);
+			console.log("Solicitação de reset enviada para:", normalizeEmail(data.email));
 			setIsSuccess(true);
 		} catch (error) {
 			console.error("Erro ao solicitar reset:", error);

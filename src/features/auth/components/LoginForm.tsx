@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { normalizeEmail } from "@/lib/formatters/text";
 import { type LoginFormData, loginSchema } from "@/shared/schemas/auth";
 
 /**
@@ -61,7 +62,7 @@ export function LoginForm() {
 		try {
 			// Criar FormData para Server Action
 			const formData = new FormData();
-			formData.append("email", data.email);
+			formData.append("email", normalizeEmail(data.email));
 			formData.append("password", data.password);
 
 			// Chamar Server Action
