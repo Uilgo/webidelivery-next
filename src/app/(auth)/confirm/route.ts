@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+/**
+ * Rota: /confirm
+ * Callback do Supabase para confirmação de email e reset de senha
+ */
 export async function GET(request: NextRequest) {
 	const { searchParams } = new URL(request.url);
 	const token_hash = searchParams.get("token_hash");

@@ -3,15 +3,15 @@ import { updateSession } from "@/utils/supabase/proxy";
 
 /**
  * Proxy de autenticação e proteção de rotas (Next.js 16)
- * Atualiza sessão do usuário e aplica regras de redirecionamento
+ * Atualiza sessão do usuário e aplica regras de redirecionamento conforme PRD
  */
 export async function proxy(request: NextRequest) {
 	// Chama o "Motor" para atualizar a sessão do Supabase
 	const { response, user } = await updateSession(request);
 
-	// Define quais rotas precisam de autenticação
-	const protectedRoutes = ["/dashboard", "/profile", "/admin"];
-	const publicRoutes = ["/login", "/signup"];
+	// Define rotas que precisam de autenticação (conforme PRD)
+	const protectedRoutes = ["/onboarding", "/admin", "/dashboard", "/profile"];
+	const publicRoutes = ["/login", "/signup", "/forgot-password"];
 
 	// Verifica se a rota atual é protegida ou pública
 	const isProtectedRoute = protectedRoutes.some((route) =>
@@ -28,10 +28,10 @@ export async function proxy(request: NextRequest) {
 		return NextResponse.redirect(redirectUrl);
 	}
 
-	// Redireciona para dashboard se tentar acessar rota pública estando logado
+	// Redireciona usuários logados que tentam acessar páginas de auth
 	if (isPublicRoute && user) {
 		const redirectUrl = request.nextUrl.clone();
-		redirectUrl.pathname = "/dashboard";
+		redirectUrl.pathname = "/"; // Página raiz fará a lógica de onboarding
 		return NextResponse.redirect(redirectUrl);
 	}
 
