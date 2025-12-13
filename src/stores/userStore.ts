@@ -22,6 +22,7 @@ interface UserState {
 	perfilError: string | null;
 
 	// Ações
+	initialize: () => Promise<void>;
 	setUser: (user: User | null) => void;
 	fetchPerfil: () => Promise<void>;
 	updatePerfil: (data: Partial<Perfil>) => Promise<ApiResponse<Perfil>>;
@@ -51,6 +52,40 @@ export const useUserStore = create<UserState>()(
 				perfilError: null,
 
 				// Ações
+				/**
+				 * Inicializa o store buscando usuário atual do Supabase
+				 * Deve ser chamado na inicialização da aplicação
+				 */
+				initialize: async () => {
+					try {
+						const supabase = createClient();
+
+						// Primeiro, tentar buscar sessão atual
+						const {
+							data: { session },
+							error: sessionError,
+						} = await supabase.auth.getSession();
+
+						if (sessionError) {
+							// Se erro de sessão, apenas definir como não autenticado
+							console.log("Nenhuma sessão ativa:", sessionError.message);
+							set({ authLoading: false, user: null });
+							return;
+						}
+
+						// Se há sessão, buscar dados do usuário
+						if (session?.user) {
+							get().setUser(session.user);
+						} else {
+							// Sem sessão ativa
+							set({ authLoading: false, user: null });
+						}
+					} catch (error) {
+						console.error("Erro inesperado na inicialização:", error);
+						set({ authLoading: false, user: null });
+					}
+				},
+
 				/**
 				 * Define o usuário autenticado e gerencia estado de loading
 				 * Automaticamente busca perfil quando usuário faz login
