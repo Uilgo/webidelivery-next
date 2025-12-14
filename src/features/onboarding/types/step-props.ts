@@ -32,6 +32,7 @@ export interface SlugValidationProps {
 	showLoading: boolean;
 	errorMessage: string | null;
 	validateOnBlur: () => void;
+	handleSlugChange: (value: string) => void;
 }
 
 /**

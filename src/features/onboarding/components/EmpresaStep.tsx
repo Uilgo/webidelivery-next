@@ -71,7 +71,7 @@ export function EmpresaStep({
 							{...register("descricao")}
 							id={descricaoId}
 							placeholder="Conte um pouco sobre seu estabelecimento..."
-							rows={3}
+							rows={2}
 							disabled={isLoading}
 							aria-invalid={!!errors.descricao}
 						/>

@@ -86,10 +86,12 @@ async function fetchFromBrasilApi(cep: string): Promise<CepData> {
 		bairro: data.neighborhood,
 		cidade: data.city,
 		estado: data.state,
-		coordinates: {
-			latitude: data.location.coordinates.latitude,
-			longitude: data.location.coordinates.longitude,
-		},
+		coordinates: data.location?.coordinates
+			? {
+					latitude: data.location.coordinates.latitude,
+					longitude: data.location.coordinates.longitude,
+				}
+			: undefined,
 		service: "brasilapi",
 	};
 }
@@ -160,22 +162,14 @@ export async function fetchCepData(
 
 		// Tentar BrasilAPI primeiro
 		try {
-			console.log(`🔍 Buscando CEP ${cleanCep} via BrasilAPI...`);
 			const data = await fetchFromBrasilApi(cleanCep);
-			console.log(`✅ CEP encontrado via BrasilAPI`);
 			return { success: true, data };
-		} catch (brasilApiError) {
-			console.warn(`⚠️ BrasilAPI falhou: ${brasilApiError}`);
-
+		} catch (_brasilApiError) {
 			// Fallback para ViaCEP
 			try {
-				console.log(`🔄 Tentando fallback via ViaCEP...`);
 				const data = await fetchFromViaCep(cleanCep);
-				console.log(`✅ CEP encontrado via ViaCEP (fallback)`);
 				return { success: true, data };
 			} catch (viaCepError) {
-				console.error(`❌ ViaCEP também falhou: ${viaCepError}`);
-
 				// Determinar tipo de erro
 				const errorMessage = String(viaCepError);
 				if (errorMessage.includes("não encontrado")) {

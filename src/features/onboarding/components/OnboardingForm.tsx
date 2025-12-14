@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { completeOnboarding } from "@/actions/onboarding";
@@ -15,21 +15,66 @@ import { EnderecoStep } from "./EnderecoStep";
 import { PersonalizacaoStep } from "./PersonalizacaoStep";
 import { ReviewStep } from "./ReviewStep";
 
+// Estados brasileiros
+const ESTADOS_BRASILEIROS = [
+	{ value: "AC", label: "Acre" },
+	{ value: "AL", label: "Alagoas" },
+	{ value: "AP", label: "Amapá" },
+	{ value: "AM", label: "Amazonas" },
+	{ value: "BA", label: "Bahia" },
+	{ value: "CE", label: "Ceará" },
+	{ value: "DF", label: "Distrito Federal" },
+	{ value: "ES", label: "Espírito Santo" },
+	{ value: "GO", label: "Goiás" },
+	{ value: "MA", label: "Maranhão" },
+	{ value: "MT", label: "Mato Grosso" },
+	{ value: "MS", label: "Mato Grosso do Sul" },
+	{ value: "MG", label: "Minas Gerais" },
+	{ value: "PA", label: "Pará" },
+	{ value: "PB", label: "Paraíba" },
+	{ value: "PR", label: "Paraná" },
+	{ value: "PE", label: "Pernambuco" },
+	{ value: "PI", label: "Piauí" },
+	{ value: "RJ", label: "Rio de Janeiro" },
+	{ value: "RN", label: "Rio Grande do Norte" },
+	{ value: "RS", label: "Rio Grande do Sul" },
+	{ value: "RO", label: "Rondônia" },
+	{ value: "RR", label: "Roraima" },
+	{ value: "SC", label: "Santa Catarina" },
+	{ value: "SP", label: "São Paulo" },
+	{ value: "SE", label: "Sergipe" },
+	{ value: "TO", label: "Tocantins" },
+];
+
+// Formatadores
+const formatters = {
+	whatsapp: formatWhatsApp,
+	cep: formatCEP,
+};
+
+// Campos obrigatórios por step
+const REQUIRED_FIELDS_BY_STEP: Record<number, (keyof OnboardingFormData)[]> = {
+	0: ["nome", "whatsapp"],
+	1: ["endereco_estado", "endereco_cidade", "endereco_bairro", "endereco_rua", "endereco_numero"],
+	2: ["slug"],
+};
+
 /**
  * Componente principal do formulário de onboarding
  * Gerencia navegação entre steps, validação global e submissão final
- * Centraliza toda a lógica para desafogar os steps individuais
  */
 export function OnboardingForm() {
 	const {
 		currentStep,
 		formData,
 		isLoading,
+		isHydrated,
 		nextStep,
 		prevStep,
 		updateFormData,
 		setIsLoading,
 		goToStep,
+		clearStorage,
 	} = useOnboarding();
 
 	// Formulário global com validação Zod
@@ -43,7 +88,7 @@ export function OnboardingForm() {
 	} = useForm<OnboardingFormData>({
 		resolver: zodResolver(onboardingSchema),
 		defaultValues: formData,
-		mode: "onBlur",
+		mode: "onChange",
 	});
 
 	// Hook para validação de slug em tempo real
@@ -57,49 +102,6 @@ export function OnboardingForm() {
 		showLoading: slugLoading,
 		error: slugErrorMessage,
 	} = useSlugValidation();
-
-	// Estados brasileiros (centralizados)
-	const estadosBrasileiros = useMemo(
-		() => [
-			{ value: "AC", label: "Acre" },
-			{ value: "AL", label: "Alagoas" },
-			{ value: "AP", label: "Amapá" },
-			{ value: "AM", label: "Amazonas" },
-			{ value: "BA", label: "Bahia" },
-			{ value: "CE", label: "Ceará" },
-			{ value: "DF", label: "Distrito Federal" },
-			{ value: "ES", label: "Espírito Santo" },
-			{ value: "GO", label: "Goiás" },
-			{ value: "MA", label: "Maranhão" },
-			{ value: "MT", label: "Mato Grosso" },
-			{ value: "MS", label: "Mato Grosso do Sul" },
-			{ value: "MG", label: "Minas Gerais" },
-			{ value: "PA", label: "Pará" },
-			{ value: "PB", label: "Paraíba" },
-			{ value: "PR", label: "Paraná" },
-			{ value: "PE", label: "Pernambuco" },
-			{ value: "PI", label: "Piauí" },
-			{ value: "RJ", label: "Rio de Janeiro" },
-			{ value: "RN", label: "Rio Grande do Norte" },
-			{ value: "RS", label: "Rio Grande do Sul" },
-			{ value: "RO", label: "Rondônia" },
-			{ value: "RR", label: "Roraima" },
-			{ value: "SC", label: "Santa Catarina" },
-			{ value: "SP", label: "São Paulo" },
-			{ value: "SE", label: "Sergipe" },
-			{ value: "TO", label: "Tocantins" },
-		],
-		[],
-	);
-
-	// Funções de formatação centralizadas (importadas da lib)
-	const formatters = useMemo(
-		() => ({
-			whatsapp: formatWhatsApp,
-			cep: formatCEP,
-		}),
-		[],
-	);
 
 	// Sincronizar dados do hook useOnboarding com react-hook-form
 	useEffect(() => {
@@ -127,100 +129,78 @@ export function OnboardingForm() {
 		}
 	}, [slug, setValue]);
 
-	// Validação por step
-	const validateCurrentStep = async (): Promise<boolean> => {
-		const fieldsToValidate = getFieldsForCurrentStep();
-		return await trigger(fieldsToValidate);
-	};
+	// Watch para reatividade
+	const watchedValues = watch();
 
-	// Obter campos para validação do step atual
-	const getFieldsForCurrentStep = (): (keyof OnboardingFormData)[] => {
-		switch (currentStep) {
-			case 0:
-				return ["nome", "descricao", "whatsapp"];
-			case 1:
-				return [
-					"endereco_estado",
-					"endereco_cidade",
-					"endereco_bairro",
-					"endereco_rua",
-					"endereco_numero",
-					"endereco_cep",
-					"endereco_complemento",
-					"endereco_referencia",
-				];
-			case 2:
-				return ["slug"];
-			default:
-				return [];
-		}
-	};
+	// Obter campos obrigatórios do step atual
+	const getRequiredFields = () => REQUIRED_FIELDS_BY_STEP[currentStep] || [];
 
 	// Verificar se step atual tem dados válidos
-	const isCurrentStepValid = (): boolean => {
-		const fields = getFieldsForCurrentStep();
-		const currentValues = getValues();
-		const hasRequiredFields = fields.every((field) => {
-			const value = currentValues[field];
-			// Campos obrigatórios por step
-			const requiredFields =
-				{
-					0: ["nome", "whatsapp"],
-					1: [
-						"endereco_estado",
-						"endereco_cidade",
-						"endereco_bairro",
-						"endereco_rua",
-						"endereco_numero",
-					],
-					2: ["slug"],
-				}[currentStep] || [];
+	const checkStepValidity = () => {
+		const requiredFields = getRequiredFields();
 
-			return !requiredFields.includes(field) || (value && value.toString().trim() !== "");
+		// Verificar se todos os campos obrigatórios estão preenchidos
+		const hasRequiredFields = requiredFields.every((field) => {
+			const value = watchedValues[field];
+			return value && value.toString().trim() !== "";
 		});
 
-		const hasNoErrors = fields.every((field) => !errors[field]);
-		const slugValid = currentStep !== 2 || slugSuccess;
+		// Verificar se não há erros de validação nos campos obrigatórios
+		const hasNoErrors = requiredFields.every((field) => !errors[field]);
+
+		// Verificar slug (apenas no step 2) - deve ter slug válido E disponível
+		const slugValid = currentStep !== 2 || (slug && slugSuccess && !slugError);
 
 		return hasRequiredFields && hasNoErrors && slugValid;
 	};
 
-	/**
-	 * Manipula navegação para próximo step
-	 */
+	const isCurrentStepValid = Boolean(checkStepValidity());
+
+	// Validação por step
+	const validateCurrentStep = async (): Promise<boolean> => {
+		const fieldsToValidate = getRequiredFields();
+		return await trigger(fieldsToValidate);
+	};
+
+	// Manipula navegação para próximo step
 	const handleNext = async () => {
 		const isValid = await validateCurrentStep();
 		if (!isValid) return;
 
+		// Pegar todos os valores do formulário
 		const currentValues = getValues();
-		updateFormData(currentValues);
+
+		// Garantir que os valores da store também sejam incluídos (para campos controlados externamente)
+		const mergedValues = { ...formData, ...currentValues };
+		updateFormData(mergedValues);
 		nextStep();
 	};
 
-	/**
-	 * Manipula edição de um step específico
-	 */
+	// Manipula edição de um step específico
 	const handleEdit = (stepIndex: number) => {
 		goToStep(stepIndex);
 	};
 
-	/**
-	 * Manipula navegação para step anterior
-	 */
+	// Manipula navegação para step anterior
 	const handlePrev = () => {
 		prevStep();
 	};
 
-	/**
-	 * Manipula mudança de campo com formatação automática
-	 */
+	// Manipula mudança de campo com formatação automática
 	const handleFieldChange = (
 		field: keyof OnboardingFormData,
 		value: string,
 		formatter?: (value: string) => string,
 	) => {
 		const formattedValue = formatter ? formatter(value) : value;
-		setValue(field, formattedValue);
+		setValue(field, formattedValue, {
+			shouldDirty: true,
+			shouldTouch: true,
+			shouldValidate: false,
+		});
+
+		// Atualizar store imediatamente para persistência
+		updateFormData({ [field]: formattedValue });
 
 		// Casos especiais
 		if (field === "slug") {
@@ -228,17 +208,16 @@ export function OnboardingForm() {
 		}
 	};
 
-	/**
-	 * Manipula conclusão do onboarding
-	 */
+	// Manipula conclusão do onboarding
 	const handleComplete = async (completeData: OnboardingFormData) => {
 		setIsLoading(true);
 
 		try {
-			// Chamar Server Action para salvar dados
 			await completeOnboarding(completeData);
 
-			// Sucesso será tratado pelo redirect da Server Action
+			// Limpa localStorage após sucesso
+			clearStorage();
+
 			toast.success("Onboarding concluído com sucesso!", {
 				description: "Redirecionando para o dashboard...",
 			});
@@ -264,27 +243,42 @@ export function OnboardingForm() {
 		isLoading,
 		formatters,
 		handleFieldChange,
-		isValid: isCurrentStepValid(),
+		isValid: isCurrentStepValid,
 	};
 
-	// Renderizar step atual
-	const renderCurrentStep = () => {
-		switch (currentStep) {
-			case 0:
-				return <EmpresaStep {...globalStepProps} onNext={handleNext} />;
+	// Aguarda hidratação para evitar mismatch de SSR
+	if (!isHydrated) {
+		return (
+			<div className="w-full max-w-2xl flex items-center justify-center py-12">
+				<div className="animate-pulse text-muted-foreground">Carregando...</div>
+			</div>
+		);
+	}
 
-			case 1:
-				return (
+	// Renderizar step atual
+	switch (currentStep) {
+		case 0:
+			return (
+				<div className="w-full max-w-2xl">
+					<EmpresaStep {...globalStepProps} onNext={handleNext} />
+				</div>
+			);
+
+		case 1:
+			return (
+				<div className="w-full max-w-2xl">
 					<EnderecoStep
 						{...globalStepProps}
-						estados={estadosBrasileiros}
+						estados={ESTADOS_BRASILEIROS}
 						onNext={handleNext}
 						onPrev={handlePrev}
 					/>
-				);
+				</div>
+			);
 
-			case 2:
-				return (
+		case 2:
+			return (
+				<div className="w-full max-w-2xl">
 					<PersonalizacaoStep
 						{...globalStepProps}
 						slug={slug}
@@ -294,27 +288,31 @@ export function OnboardingForm() {
 							showLoading: slugLoading,
 							errorMessage: slugErrorMessage,
 							validateOnBlur: validateSlugOnBlur,
+							handleSlugChange,
 						}}
 						onNext={handleNext}
 						onPrev={handlePrev}
 					/>
-				);
+				</div>
+			);
 
-			case 3:
-				return (
+		case 3: {
+			// Mesclar dados do formulário com dados da store para garantir que todos os campos estejam presentes
+			const reviewData = { ...formData, ...getValues() };
+			return (
+				<div className="w-full max-w-2xl">
 					<ReviewStep
-						formData={getValues()}
+						formData={reviewData}
 						onPrev={handlePrev}
 						onComplete={handleComplete}
 						onEdit={handleEdit}
 						isLoading={isLoading}
 					/>
-				);
-
-			default:
-				return null;
+				</div>
+			);
 		}
-	};
 
-	return <div className="w-full max-w-2xl">{renderCurrentStep()}</div>;
+		default:
+			return null;
+	}
 }

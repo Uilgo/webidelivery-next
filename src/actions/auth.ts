@@ -44,7 +44,8 @@ export async function login(formData: FormData) {
 		redirect("/login?error=no-user");
 	}
 
-	// Login bem-sucedido - revalida cache e redireciona
+	// Login bem-sucedido - revalida cache e redireciona para página raiz
+	// A página raiz (/) fará a lógica de verificar onboarding conforme PRD
 	revalidatePath("/", "layout");
 	redirect("/");
 }
@@ -83,9 +84,10 @@ export async function signup(formData: FormData) {
 	if (error) {
 		console.error("Erro no signup:", error.message);
 
-		// Redireciona com erro específico
+		// Redireciona com erro específico conforme PRD
 		if (error.message.includes("User already registered")) {
-			redirect("/signup?error=email-exists");
+			// Conforme PRD: "Já existe uma conta criada com este e-mail. Faça login para continuar."
+			redirect("/login?error=email-exists");
 		}
 
 		if (error.message.includes("Password")) {

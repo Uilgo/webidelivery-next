@@ -1,96 +1,110 @@
 "use client";
 
-import { useState } from "react";
-import type { OnboardingFormData } from "@/shared/schemas/onboarding";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import {
+	getProgress,
+	getStepsWithStatus,
+	STEPS_CONFIG,
+	useOnboardingStore,
+} from "@/stores/onboardingStore";
 
 /**
- * Hook para gerenciar estado do onboarding
- * Controla navegação entre steps e dados do formulário
+ * Hook para gerenciar onboarding com sincronização de URL
+ * Usa Zustand store para estado compartilhado entre componentes
+ * Gerencia URL params (?step=1, ?step=2, etc.) - 1-based
  */
-
-export interface OnboardingStep {
-	id: string;
-	title: string;
-	description: string;
-	completed: boolean;
-	current: boolean;
-}
-
 export function useOnboarding() {
-	// Estado dos steps
-	const [currentStep, setCurrentStep] = useState(0);
-	const [formData, setFormData] = useState<Partial<OnboardingFormData>>({});
-	const [isLoading, setIsLoading] = useState(false);
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 
-	// Definição dos steps
-	const steps: OnboardingStep[] = [
-		{
-			id: "empresa",
-			title: "Dados da Empresa",
-			description: "Informações básicas do seu estabelecimento",
-			completed: currentStep > 0,
-			current: currentStep === 0,
-		},
-		{
-			id: "endereco",
-			title: "Endereço",
-			description: "Localização do seu estabelecimento",
-			completed: currentStep > 1,
-			current: currentStep === 1,
-		},
-		{
-			id: "personalizacao",
-			title: "Personalização",
-			description: "URL personalizada e logo",
-			completed: currentStep > 2,
-			current: currentStep === 2,
-		},
-		{
-			id: "review",
-			title: "Revisão",
-			description: "Confirme suas informações",
-			completed: currentStep > 3,
-			current: currentStep === 3,
-		},
-	];
+	// Estado da store (compartilhado)
+	const currentStep = useOnboardingStore((s) => s.currentStep);
+	const formData = useOnboardingStore((s) => s.formData);
+	const isLoading = useOnboardingStore((s) => s.isLoading);
+	const setCurrentStep = useOnboardingStore((s) => s.setCurrentStep);
+	const storeNextStep = useOnboardingStore((s) => s.nextStep);
+	const storePrevStep = useOnboardingStore((s) => s.prevStep);
+	const storeGoToStep = useOnboardingStore((s) => s.goToStep);
+	const updateFormData = useOnboardingStore((s) => s.updateFormData);
+	const setIsLoading = useOnboardingStore((s) => s.setIsLoading);
+	const resetStore = useOnboardingStore((s) => s.resetOnboarding);
 
-	// Funções de navegação
-	const nextStep = () => {
-		if (currentStep < steps.length - 1) {
-			setCurrentStep(currentStep + 1);
+	// Estado de hidratação
+	const [isHydrated, setIsHydrated] = useState(false);
+
+	// Sincroniza step da URL com a store
+	useEffect(() => {
+		const urlStep = searchParams.get("step");
+		if (urlStep !== null) {
+			const parsed = Number.parseInt(urlStep, 10);
+			// URL é 1-based, converte para 0-based
+			const stepIndex = parsed - 1;
+			if (!Number.isNaN(parsed) && stepIndex >= 0 && stepIndex < STEPS_CONFIG.length) {
+				if (stepIndex !== currentStep) {
+					setCurrentStep(stepIndex);
+				}
+			}
 		}
-	};
+		setIsHydrated(true);
+	}, [searchParams, currentStep, setCurrentStep]);
 
-	const prevStep = () => {
+	// Função para atualizar URL
+	const updateUrl = useCallback(
+		(stepIndex: number) => {
+			// URL é 1-based
+			const urlStep = stepIndex + 1;
+			router.replace(`${pathname}?step=${urlStep}`, { scroll: false });
+		},
+		[pathname, router],
+	);
+
+	// Funções de navegação (atualizam store E URL)
+	const nextStep = useCallback(() => {
+		if (currentStep < STEPS_CONFIG.length - 1) {
+			const newStep = currentStep + 1;
+			storeNextStep();
+			updateUrl(newStep);
+		}
+	}, [currentStep, storeNextStep, updateUrl]);
+
+	const prevStep = useCallback(() => {
 		if (currentStep > 0) {
-			setCurrentStep(currentStep - 1);
+			const newStep = currentStep - 1;
+			storePrevStep();
+			updateUrl(newStep);
 		}
-	};
+	}, [currentStep, storePrevStep, updateUrl]);
 
-	const goToStep = (stepIndex: number) => {
-		if (stepIndex >= 0 && stepIndex < steps.length) {
-			setCurrentStep(stepIndex);
-		}
-	};
-
-	// Função para atualizar dados do formulário
-	const updateFormData = (data: Partial<OnboardingFormData>) => {
-		setFormData((prev) => ({ ...prev, ...data }));
-	};
+	const goToStep = useCallback(
+		(stepIndex: number) => {
+			if (stepIndex >= 0 && stepIndex < STEPS_CONFIG.length) {
+				storeGoToStep(stepIndex);
+				updateUrl(stepIndex);
+			}
+		},
+		[storeGoToStep, updateUrl],
+	);
 
 	// Função para resetar onboarding
-	const resetOnboarding = () => {
-		setCurrentStep(0);
-		setFormData({});
-		setIsLoading(false);
-	};
+	const resetOnboarding = useCallback(() => {
+		resetStore();
+		updateUrl(0);
+	}, [resetStore, updateUrl]);
 
-	// Estados derivados
+	// Função para limpar storage (chamada após sucesso)
+	const clearStorage = useCallback(() => {
+		resetStore();
+	}, [resetStore]);
+
+	// Valores derivados
+	const steps = getStepsWithStatus(currentStep);
+	const progress = getProgress(currentStep);
 	const isFirstStep = currentStep === 0;
-	const isLastStep = currentStep === steps.length - 1;
-	const canGoNext = currentStep < steps.length - 1;
+	const isLastStep = currentStep === STEPS_CONFIG.length - 1;
+	const canGoNext = currentStep < STEPS_CONFIG.length - 1;
 	const canGoPrev = currentStep > 0;
-	const progress = ((currentStep + 1) / steps.length) * 100;
 
 	return {
 		// Estado
@@ -98,6 +112,7 @@ export function useOnboarding() {
 		currentStep,
 		formData,
 		isLoading,
+		isHydrated,
 
 		// Estados derivados
 		isFirstStep,
@@ -113,8 +128,12 @@ export function useOnboarding() {
 		updateFormData,
 		resetOnboarding,
 		setIsLoading,
+		clearStorage,
 
 		// Dados do step atual
 		currentStepData: steps[currentStep],
 	};
 }
+
+// Re-exportar tipos
+export type { OnboardingStep } from "@/stores/onboardingStore";

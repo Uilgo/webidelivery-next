@@ -1,89 +1,71 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { isValidCEP, unformatCEP } from "@/lib/formatters/address";
 import { type CepData, type CepError, fetchCepData } from "@/lib/services/cep";
 
 export interface UseCepLookupReturn {
-	// Estados
 	isLoading: boolean;
 	data: CepData | null;
 	error: CepError | null;
-
-	// Ações
 	lookupCep: (cep: string) => Promise<void>;
 	clearData: () => void;
-
-	// Helpers
 	isValidFormat: (cep: string) => boolean;
 }
 
 /**
  * Hook para busca manual de CEP
- *
- * @example
- * const { lookupCep, isLoading, data, error } = useCepLookup();
- *
- * // Busca manual
- * await lookupCep("01234-567");
  */
 export function useCepLookup(): UseCepLookupReturn {
 	const [isLoading, setIsLoading] = useState(false);
 	const [data, setData] = useState<CepData | null>(null);
 	const [error, setError] = useState<CepError | null>(null);
-	const [lastSearchedCep, setLastSearchedCep] = useState<string>("");
+	const lastSearchedCepRef = useRef<string>("");
 
-	/**
-	 * Busca dados do CEP
-	 */
-	const lookupCep = useCallback(
-		async (cep: string) => {
-			const cleanCep = unformatCEP(cep);
+	const lookupCep = useCallback(async (cep: string) => {
+		const cleanCep = unformatCEP(cep);
 
-			// Não buscar se CEP inválido ou já foi buscado
-			if (!isValidCEP(cleanCep) || cleanCep === lastSearchedCep) {
-				return;
-			}
+		// Não buscar se CEP inválido
+		if (!isValidCEP(cleanCep)) {
+			return;
+		}
 
-			setIsLoading(true);
-			setError(null);
-			setLastSearchedCep(cleanCep);
+		// Não buscar se já foi buscado
+		if (cleanCep === lastSearchedCepRef.current) {
+			return;
+		}
 
-			try {
-				const result = await fetchCepData(cleanCep);
+		setIsLoading(true);
+		setError(null);
+		lastSearchedCepRef.current = cleanCep;
 
-				if (result.success) {
-					setData(result.data);
-					setError(null);
-				} else {
-					setData(null);
-					setError(result.error);
-				}
-			} catch (err) {
-				console.error("Erro no hook useCepLookup:", err);
+		try {
+			const result = await fetchCepData(cleanCep);
+
+			if (result.success) {
+				setData(result.data);
+				setError(null);
+			} else {
 				setData(null);
-				setError({
-					message: "Erro inesperado ao buscar CEP",
-					code: "UNKNOWN_ERROR",
-				});
-			} finally {
-				setIsLoading(false);
+				setError(result.error);
 			}
-		},
-		[lastSearchedCep],
-	);
+		} catch (err) {
+			console.error("Erro ao buscar CEP:", err);
+			setData(null);
+			setError({
+				message: "Erro inesperado ao buscar CEP",
+				code: "UNKNOWN_ERROR",
+			});
+		} finally {
+			setIsLoading(false);
+		}
+	}, []);
 
-	/**
-	 * Limpa dados e erros
-	 */
 	const clearData = useCallback(() => {
 		setData(null);
 		setError(null);
-		setLastSearchedCep("");
+		lastSearchedCepRef.current = "";
 	}, []);
 
-	/**
-	 * Valida formato do CEP
-	 */
 	const isValidFormat = useCallback((cep: string) => {
 		return isValidCEP(unformatCEP(cep));
 	}, []);
@@ -100,48 +82,44 @@ export function useCepLookup(): UseCepLookupReturn {
 
 /**
  * Hook para busca automática de CEP com debounce
- * Busca automaticamente quando o CEP for válido
- *
- * @param cep - CEP atual do formulário
- * @param onDataFound - Callback chamado quando dados são encontrados
- * @param debounceMs - Tempo de debounce (padrão: 800ms)
- *
- * @example
- * const { isLoading, error } = useAutoCepLookup(
- *   watch("endereco_cep"),
- *   (data) => {
- *     setValue("endereco_rua", data.rua);
- *     setValue("endereco_bairro", data.bairro);
- *     setValue("endereco_cidade", data.cidade);
- *     setValue("endereco_estado", data.estado);
- *   }
- * );
  */
 export function useAutoCepLookup(
 	cep: string,
 	onDataFound?: (data: CepData) => void,
-	debounceMs: number = 800,
+	debounceMs: number = 500,
 ) {
 	const { lookupCep, isLoading, data, error, clearData } = useCepLookup();
+	const onDataFoundRef = useRef(onDataFound);
+
+	// Atualizar ref quando callback mudar
+	onDataFoundRef.current = onDataFound;
 
 	// Debounce do CEP
-	const [debouncedCep] = useDebounce(cep, debounceMs);
+	const [debouncedCep] = useDebounce(cep || "", debounceMs);
 
-	// Buscar automaticamente quando CEP mudar
+	// Buscar automaticamente quando CEP com debounce mudar
 	useEffect(() => {
-		if (debouncedCep && isValidCEP(unformatCEP(debouncedCep))) {
-			lookupCep(debouncedCep);
-		} else if (!debouncedCep) {
+		// Se não há CEP, limpar dados
+		if (!debouncedCep || debouncedCep.trim() === "") {
 			clearData();
+			return;
+		}
+
+		const cleanCep = unformatCEP(debouncedCep);
+		const valid = isValidCEP(cleanCep);
+
+		// Se CEP é válido (8 dígitos), fazer busca
+		if (valid) {
+			lookupCep(debouncedCep);
 		}
 	}, [debouncedCep, lookupCep, clearData]);
 
 	// Chamar callback quando dados forem encontrados
 	useEffect(() => {
-		if (data && onDataFound) {
-			onDataFound(data);
+		if (data && onDataFoundRef.current) {
+			onDataFoundRef.current(data);
 		}
-	}, [data, onDataFound]);
+	}, [data]);
 
 	return {
 		isLoading,

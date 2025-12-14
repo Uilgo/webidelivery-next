@@ -98,8 +98,33 @@ export const onboardingSchema = z.object({
 	// URL personalizada
 	slug: slugSchema,
 
-	// Logo (opcional)
-	logo_url: z.string().url("URL da logo inválida").optional().nullable(),
+	// Logo para tema claro (opcional)
+	logo_url: z
+		.string()
+		.refine(
+			(val) =>
+				!val ||
+				val.startsWith("http://") ||
+				val.startsWith("https://") ||
+				val.startsWith("data:image/"),
+			"URL da logo inválida",
+		)
+		.optional()
+		.nullable(),
+
+	// Logo para tema escuro (opcional, fallback para logo_url)
+	logo_url_dark: z
+		.string()
+		.refine(
+			(val) =>
+				!val ||
+				val.startsWith("http://") ||
+				val.startsWith("https://") ||
+				val.startsWith("data:image/"),
+			"URL da logo inválida",
+		)
+		.optional()
+		.nullable(),
 });
 
 // Tipos TypeScript derivados do schema
@@ -137,6 +162,7 @@ export const toEstabelecimentoInsert = (data: OnboardingFormData): Estabelecimen
 		endereco_complemento: data.endereco_complemento || null,
 		endereco_referencia: data.endereco_referencia || null,
 		logo_url: data.logo_url || null,
+		logo_url_dark: data.logo_url_dark || null,
 		// Valores padrão
 		aberto: false, // Estabelecimento inicia fechado
 		config_geral: {},

@@ -17,7 +17,7 @@
 export function formatCurrency(value: number | string): string {
 	const numericValue = typeof value === "string" ? parseFloat(value) : value;
 
-	if (isNaN(numericValue)) {
+	if (Number.isNaN(numericValue)) {
 		return "R$ 0,00";
 	}
 
@@ -44,7 +44,7 @@ export function formatCurrencyInput(value: string): string {
 	if (!numbers) return "";
 
 	// Converte para centavos
-	const cents = parseInt(numbers);
+	const cents = parseInt(numbers, 10);
 	const reais = cents / 100;
 
 	return new Intl.NumberFormat("pt-BR", {
@@ -74,7 +74,7 @@ export function parseCurrency(value: string): number {
 		.replace(",", "."); // Substitui vírgula por ponto (separador decimal)
 
 	const numericValue = parseFloat(cleanValue);
-	return isNaN(numericValue) ? 0 : numericValue;
+	return Number.isNaN(numericValue) ? 0 : numericValue;
 }
 
 /**
@@ -92,7 +92,7 @@ export function isValidCurrency(value: string): boolean {
 	if (!value) return false;
 
 	const numericValue = parseCurrency(value);
-	return !isNaN(numericValue) && numericValue >= 0;
+	return !Number.isNaN(numericValue) && numericValue >= 0;
 }
 
 /**

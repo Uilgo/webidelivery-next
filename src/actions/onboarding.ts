@@ -91,6 +91,23 @@ function handleRpcError(rpcError: { message?: string }): Error {
 }
 
 /**
+ * Marca onboarding como completo no perfil do usuário
+ */
+async function markOnboardingComplete(
+	supabase: Awaited<ReturnType<typeof createClient>>,
+	userId: string,
+) {
+	const { error } = await supabase.from("perfis").update({ onboarding: true }).eq("id", userId);
+
+	if (error) {
+		console.error("Erro ao marcar onboarding como completo:", error);
+		throw new Error("Erro ao finalizar onboarding");
+	}
+
+	console.log("✅ Onboarding marcado como completo");
+}
+
+/**
  * Server Action para finalizar onboarding
  * Cria estabelecimento e atualiza perfil do usuário
  */
@@ -103,7 +120,7 @@ export async function completeOnboarding(formData: OnboardingFormData) {
 		const supabase = await createClient();
 
 		// Validar autenticação
-		await validateUserAuth(supabase);
+		const user = await validateUserAuth(supabase);
 
 		// Validar slug
 		await validateSlugAvailability(validatedData.slug);
@@ -111,7 +128,10 @@ export async function completeOnboarding(formData: OnboardingFormData) {
 		// Criar estabelecimento
 		await createEstabelecimento(supabase, validatedData);
 
-		// Revalidar cache e redirecionar
+		// IMPORTANTE: Marcar onboarding como completo (conforme PRD)
+		await markOnboardingComplete(supabase, user.id);
+
+		// Revalidar cache e redirecionar para dashboard (conforme PRD)
 		revalidatePath("/", "layout");
 		redirect("/admin/dashboard");
 	} catch (error) {

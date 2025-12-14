@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { checkSlugAvailability } from "@/actions/validation";
 import { generateSlug } from "@/lib/formatters/text";
@@ -8,7 +8,7 @@ import { slugSchema } from "@/shared/schemas/onboarding";
 
 /**
  * Hook para validação de slug em tempo real
- * Verifica se o slug já está em uso no sistema
+ * Integra validação Zod (formato) + RPC (disponibilidade)
  */
 export function useSlugValidation() {
 	const [slug, setSlug] = useState("");
@@ -17,7 +17,10 @@ export function useSlugValidation() {
 	const [isChecking, setIsChecking] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	// Debounce do slug para evitar muitas chamadas
+	// Ref para rastrear o último slug verificado (evita chamadas duplicadas)
+	const lastCheckedSlug = useRef<string>("");
+
+	// Debounce do slug para evitar muitas chamadas à RPC
 	const [debouncedSlug] = useDebounce(slug, 600);
 
 	/**
@@ -40,7 +43,7 @@ export function useSlugValidation() {
 	}, []);
 
 	/**
-	 * Verificar disponibilidade do slug no servidor
+	 * Verificar disponibilidade do slug no servidor via RPC
 	 */
 	const checkAvailability = useCallback(
 		async (slugValue: string) => {
@@ -51,7 +54,7 @@ export function useSlugValidation() {
 				return;
 			}
 
-			// Validar formato primeiro
+			// 1. Validar formato primeiro (Zod tem prioridade)
 			const formatError = validateSlugFormat(slugValue);
 			if (formatError) {
 				setIsValid(false);
@@ -60,6 +63,7 @@ export function useSlugValidation() {
 				return;
 			}
 
+			// 2. Se formato está OK, verificar disponibilidade via RPC
 			setIsValid(true);
 			setIsChecking(true);
 			setError(null);
@@ -89,8 +93,12 @@ export function useSlugValidation() {
 
 	// Efeito para verificar slug quando o valor debounced muda
 	useEffect(() => {
-		checkAvailability(debouncedSlug);
-	}, [debouncedSlug, checkAvailability]);
+		// Só verifica se o slug mudou de verdade
+		if (debouncedSlug && debouncedSlug !== lastCheckedSlug.current) {
+			lastCheckedSlug.current = debouncedSlug;
+			checkAvailability(debouncedSlug);
+		}
+	}, [debouncedSlug, checkAvailability]); // Removido checkAvailability das dependências
 
 	/**
 	 * Função para atualizar o slug
@@ -141,9 +149,10 @@ export function useSlugValidation() {
 		convertToSlug,
 		generateFromText,
 
-		// Estados derivados
+		// Estados derivados para UI
 		showSuccess: isValid && isAvailable && !isChecking,
 		showError: error !== null,
 		showLoading: isChecking,
+		errorMessage: error,
 	};
 }

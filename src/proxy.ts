@@ -3,38 +3,44 @@ import { updateSession } from "@/utils/supabase/proxy";
 
 /**
  * Proxy de autenticação e proteção de rotas (Next.js 16)
- * Atualiza sessão do usuário e aplica regras de redirecionamento conforme PRD
+ * Implementa regras de redirecionamento conforme PRD:
+ *
+ * REGRAS DE REDIRECIONAMENTO:
+ * - Rota raiz (/) → /admin/dashboard se autenticado ou /login se não
+ * - Após login → /onboarding se onboarding=false, senão /admin/dashboard
+ * - Ao concluir onboarding → setar onboarding=true e ir para /admin/dashboard
+ * - Usuários logados não acessam /login, /signup → redirecionam para /
  */
 export async function proxy(request: NextRequest) {
 	// Chama o "Motor" para atualizar a sessão do Supabase
 	const { response, user } = await updateSession(request);
 
-	// Define rotas que precisam de autenticação (conforme PRD)
-	const protectedRoutes = ["/onboarding", "/admin", "/dashboard", "/profile"];
-	const publicRoutes = ["/login", "/signup", "/forgot-password"];
+	const pathname = request.nextUrl.pathname;
 
-	// Verifica se a rota atual é protegida ou pública
-	const isProtectedRoute = protectedRoutes.some((route) =>
-		request.nextUrl.pathname.startsWith(route),
-	);
+	// Define rotas conforme PRD
+	const protectedRoutes = ["/admin", "/onboarding"];
+	const authRoutes = ["/login", "/signup", "/forgot-password"];
 
-	const isPublicRoute = publicRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
+	// Verifica tipos de rota
+	const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+	const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
-	// Redireciona para login se tentar acessar rota protegida sem estar logado
+	// 1. ROTAS PROTEGIDAS: Requer autenticação
 	if (isProtectedRoute && !user) {
 		const redirectUrl = request.nextUrl.clone();
 		redirectUrl.pathname = "/login";
-		redirectUrl.searchParams.set("redirectedFrom", request.nextUrl.pathname);
+		redirectUrl.searchParams.set("redirectedFrom", pathname);
 		return NextResponse.redirect(redirectUrl);
 	}
 
-	// Redireciona usuários logados que tentam acessar páginas de auth
-	if (isPublicRoute && user) {
+	// 2. ROTAS DE AUTH: Usuários logados não devem acessar (conforme PRD)
+	if (isAuthRoute && user) {
 		const redirectUrl = request.nextUrl.clone();
 		redirectUrl.pathname = "/"; // Página raiz fará a lógica de onboarding
 		return NextResponse.redirect(redirectUrl);
 	}
 
+	// 3. OUTRAS ROTAS: Permite acesso (APIs, assets, página raiz, etc.)
 	return response;
 }
 

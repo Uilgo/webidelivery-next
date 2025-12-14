@@ -48,11 +48,10 @@ export function useUser() {
 		 */
 		const {
 			data: { subscription },
-		} = supabase.auth.onAuthStateChange((event, session) => {
+		} = supabase.auth.onAuthStateChange((_event, session) => {
 			setUser(session?.user ?? null);
 
-			// Log para debug (remover em produção)
-			console.log("Auth state changed:", event, session?.user?.email);
+			// Auth state changed
 		});
 
 		return () => subscription.unsubscribe();
